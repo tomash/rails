@@ -35,6 +35,34 @@ class AssociationValidationTest < ActiveRecord::TestCase
     assert r.valid?
   end
 
+  # reply belongs to topic, see if on updating reply the topic gets revalidated
+  def test_revalidates_associated_one_on_update
+    Reply.validates :topic, :associated => true # without this, no revalidation happens
+    Topic.validates_presence_of( :content )
+    r = Reply.new("title" => "A reply", "content" => "with content!")
+    r.topic = Topic.create("title" => "uhohuhoh", "content" => "some non-empty")
+    assert r.valid?
+    r.save
+    r.topic.content = nil
+    r.topic.save(validate: false)
+    r.reload
+    assert !r.valid?
+    assert !r.save
+  end
+
+  # reply belongs to topic, see if on updating topic the replies gets revalidated
+  def test_revalidates_associated_many_on_update
+    Reply.validates_presence_of :content
+    Topic.validates :replies, :associated => true # without this, no revalidation hapens
+    t = Topic.create("title" => "uhohuhoh", "content" => "some non-empty")
+    r = Reply.create("title" => "A reply", "content" => "with content!", "topic" => t)
+    r.content = nil
+    r.save(validate: false)
+    t.reload
+    assert !t.valid?
+    assert !t.save
+  end
+
   def test_validates_associated_marked_for_destruction
     Topic.validates_associated(:replies)
     Reply.validates_presence_of(:content)
